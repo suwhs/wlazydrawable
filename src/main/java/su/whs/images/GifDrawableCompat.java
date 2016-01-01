@@ -24,6 +24,7 @@ import android.graphics.drawable.Animatable;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 
+import java.io.IOException;
 import java.io.InputStream;
 
 
@@ -47,7 +48,7 @@ public class GifDrawableCompat extends Drawable implements Animatable {
         }
     };
 
-    public GifDrawableCompat(InputStream inputStream) {
+    public GifDrawableCompat(InputStream inputStream) throws IOException {
         mDecoder = new GifDecoder();
         mDecoder.read(inputStream,0);
         mDecoder.advance();

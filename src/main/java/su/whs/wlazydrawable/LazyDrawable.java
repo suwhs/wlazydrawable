@@ -164,7 +164,8 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
                         }
                     }, SystemClock.uptimeMillis()+60);
             }
-            drawNextLoadingFrame(canvas);
+            if (isLoading)
+                drawNextLoadingFrame(canvas);
         } else if (isError) {
             drawLoadError(canvas);
         }
@@ -531,7 +532,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         if (progress!=null) {
             angle += 10;
             if (angle>360) angle = 0;
-            drawProgress(canvas,progress,0,angle);
+            drawProgress(canvas,progress,angle,255);
         }
     }
 

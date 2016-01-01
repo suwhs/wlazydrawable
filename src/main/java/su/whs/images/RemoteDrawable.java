@@ -27,6 +27,9 @@ import android.text.TextUtils;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -101,12 +104,11 @@ public abstract class RemoteDrawable extends PreviewDrawable {
             try {
                 return readGifPreview();
             } catch (IOException e) {
-                //e.printStackTrace();
+                return null;
             }
         } else {
-            return readBitmap(streamSampling);
+            return readBitmap(mUrl,streamSampling);
         }
-        return null;
     }
 
     private static synchronized  ThreadPoolExecutor getGifExecutor() {
@@ -116,24 +118,10 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         return gifExecutor;
     }
 
-    private Runnable mGifDecoderRunnable = new Runnable() {
-        @Override
-        public void run() {
-
-        }
-    };
-
-    private Runnable mReadGifPreviewDrawable = new Runnable() {
-        @Override
-        public void run() {
-
-        }
-    };
-
     private Drawable readGifPreview() throws IOException {
         GifDecoder decoder = new GifDecoder();
         try {
-            decoder.read(getInputStream(), 0);
+            decoder.read(getInputStream(mUrl), 0);
             decoder.advance();
             Bitmap frame = decoder.getNextFrame();
             Drawable result = new BitmapDrawable(Resources.getSystem(),frame);
@@ -143,14 +131,18 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         } catch (ArithmeticException e) {
 
         } catch (NullPointerException e) {
-            // suppress error gif decoding
+
         }
         onLoadingError();
         return null;
     }
 
     private Drawable readFullGif() {
-        return new GifDrawableCompat(getInputStream());
+        try {
+            return new GifDrawableCompat(getInputStream(mUrl));
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     /**
@@ -165,9 +157,9 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         if (mIsGif)
             return readFullGif();
         if (mFullUrl!=null) {
-            return null;
+            return readBitmap(mFullUrl,1);
         }
-        return readBitmap(1);
+        return readBitmap(mUrl,1);
     }
 
     private boolean needReopen(BufferedInputStream bis) {
@@ -179,11 +171,15 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         return false;
     }
 
-    public Drawable readBitmap(int sampling) {
+    public Drawable readBitmap(String url, int sampling) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inPreferredConfig = Bitmap.Config.RGB_565;
         try {
-            InputStream is = getInputStream();
+            InputStream is = getInputStream(url);
+            if (is==null) {
+                handleLoadError();
+                return null;
+            }
             BufferedInputStream bis = new BufferedInputStream(is,16384);
             bis.mark(16384);
             options.inJustDecodeBounds = true;
@@ -192,9 +188,10 @@ public abstract class RemoteDrawable extends PreviewDrawable {
 
             final int outWidth = options.outWidth;
             final int outHeight = options.outHeight;
+            onSizeDecoded(outWidth,outHeight);
             if (needReopen(bis)) { // some android versions reads ALL stream when 'inJustDecodeBounds=true'
                 is.close();
-                bis = new BufferedInputStream(getInputStream(),16384);
+                bis = new BufferedInputStream(getInputStream(url),16384);
             }
             options.inJustDecodeBounds = false;
             if (options.outWidth>MAX_DIMENSION_FOR_PREVIEW && options.outHeight> MAX_DIMENSION_FOR_PREVIEW)
@@ -235,6 +232,10 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         return mUrl;
     }
 
+    public String getFullUrl() {
+        return mFullUrl == null ? mUrl : mFullUrl;
+    }
+
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
@@ -254,7 +255,6 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         setErrorDrawable(loading);
         loading = context.getResources().getDrawable(R.mipmap.ic_queued_gray);
         loading.setBounds(0, 0, loading.getIntrinsicWidth(), loading.getIntrinsicHeight());
-        // setQueuedDrawable(loading);
     }
 
 
@@ -269,5 +269,18 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         super.Unload();
     }
 
-    protected abstract InputStream getInputStream();
+    protected InputStream getInputStream(String u) {
+        URL url;
+        try {
+            url = new URL(u);
+        } catch (MalformedURLException e) {
+            return  null;
+        }
+        try {
+            URLConnection conn = url.openConnection();
+            return conn.getInputStream();
+        } catch (IOException e) {
+            return null;
+        }
+    }
 }

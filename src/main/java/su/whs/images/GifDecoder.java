@@ -151,7 +151,6 @@ public class GifDecoder {
      * Move the animation frame counter forward
      */
     public void advance() {
-        if (frameCount<1) return;
         framePointer = (framePointer + 1) % frameCount;
     }
 
@@ -270,7 +269,6 @@ public class GifDecoder {
                 buffer.flush();
 
                 read(buffer.toByteArray());
-                // TODO: implement read on demand with recycle bitmaps
             } catch (IOException e) {
                 Log.w(TAG, "Error reading data from stream", e);
             }
