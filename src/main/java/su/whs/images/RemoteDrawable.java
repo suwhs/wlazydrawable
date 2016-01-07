@@ -23,6 +23,7 @@ import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
+import android.util.Log;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -211,8 +212,13 @@ public abstract class RemoteDrawable extends PreviewDrawable {
                         return outHeight;
                     }
                 };
+            } else if (bmp==null) {
+                Log.e(TAG, "Bitmap Decode error from url:"+url);
+            } else {
+                Log.e(TAG, "Bitmap Wrong Geometry from url:"+url);
             }
         } catch (IOException e) {
+            Log.e(TAG,"Bitmap read Exception:"+e);
             handleLoadError();
         }
         return null;
@@ -269,7 +275,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         super.Unload();
     }
 
-    protected InputStream getInputStream(String u) {
+    protected InputStream getInputStream(String u) throws IOException {
         URL url;
         try {
             url = new URL(u);

@@ -52,6 +52,7 @@ public abstract class PreviewDrawable extends LazyDrawable {
                     synchronized (PreviewDrawable.this) {
                         setDrawable(full);
                     }
+                    setLoadingState(false);
                 }
             }
         });
