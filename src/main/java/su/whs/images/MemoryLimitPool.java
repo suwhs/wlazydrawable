@@ -8,16 +8,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import su.whs.wlazydrawable.LazyDrawable;
+import su.whs.wlazydrawable.RemoteDrawable;
 
 /**
  * Created by igor n. boulliev on 04.11.15.
  */
 public class MemoryLimitPool {
     public static Map<Context,MemoryLimitPool> mContextDependedPools = new HashMap<Context,MemoryLimitPool>();
-    private static int MAX_CACHED_ITEMS = 10;
+    private static int MAX_CACHED_ITEMS = 100;
 
     private Context mContext;
-    private Map<String,WeakReference<LazyDrawable>> mRemoteDrawables = new LruCache<String,WeakReference<LazyDrawable>>(MAX_CACHED_ITEMS) {
+    private LruCache<String,WeakReference<LazyDrawable>> mRemoteDrawables = new LruCache<String,WeakReference<LazyDrawable>>(MAX_CACHED_ITEMS) {
         @Override
         protected boolean removeEldestEntry(Entry eldest) {
             boolean result = super.removeEldestEntry(eldest);
@@ -57,12 +58,24 @@ public class MemoryLimitPool {
             mRemoteDrawables.remove(url).get().Unload();
     }
 
+    public void setPoolSize(int size) {
+        mRemoteDrawables.setSize(size);
+    }
+
+    public void reference(String url) {
+
+    }
+
     private class LruCache<A, B> extends LinkedHashMap<A, B> {
-        private final int maxEntries;
+        private int maxEntries;
 
         public LruCache(final int maxEntries) {
             super(maxEntries + 1, 1.0f, true);
             this.maxEntries = maxEntries;
+        }
+
+        public void setSize(int size) {
+            maxEntries = size;
         }
 
         /**

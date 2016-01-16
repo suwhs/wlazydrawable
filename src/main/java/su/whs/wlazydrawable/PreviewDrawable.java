@@ -1,50 +1,48 @@
-package su.whs.images;
+package su.whs.wlazydrawable;
 
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 
-import su.whs.wlazydrawable.LazyDrawable;
+import su.whs.images.GifDrawableCompat;
 
 /**
- * Created by igor n. boulliev on 05.12.15.
+ * Created by igor n. boulliev <igor@whs.su> on 05.12.15.
  */
 public abstract class PreviewDrawable extends LazyDrawable {
-    private boolean mFullMode = false;
+
     public PreviewDrawable(Object executorTag, int srcWidth, int srcHeight) {
         super(executorTag, srcWidth, srcHeight, ScaleType.SCALE_FIT);
     }
 
-    /*
-    protected enum State {
-        NONE,
-        QUEUED,
-        LOADING,
-        PREVIEW,
-        FULL,
-        ANIMATION,
-        ERROR,
-        PARAM_ERROR,
-    } */
-
     @Override
     public void start() {
-
+        super.start();
     }
 
     @Override
     public void stop() {
-
+        super.stop();
     }
 
     @Override
     public boolean isRunning() {
-        return false;
+        return super.isRunning();
     }
 
     public void loadFullDrawable() {
         setLoadingState(true);
-        getExecutor().execute(new Runnable() {
+        getExecutor().execute(new LoadingRunnable() {
+            @Override
+            public void onExecutionFailed(Throwable t) {
+                handleLoadError();
+            }
+
+            @Override
+            public void cancel() {
+
+            }
+
             @Override
             public void run() {
                 Drawable full = getFullDrawable();
@@ -52,7 +50,9 @@ public abstract class PreviewDrawable extends LazyDrawable {
                     synchronized (PreviewDrawable.this) {
                         setDrawable(full);
                     }
-                    setLoadingState(false);
+                    handleLoadFinish();
+                } else {
+                    handleLoadError();
                 }
             }
         });
@@ -70,6 +70,8 @@ public abstract class PreviewDrawable extends LazyDrawable {
         Drawable d = getDrawable();
         if (d instanceof BitmapDrawable) {
             return ((BitmapDrawable)d).getBitmap();
+        } else if (d instanceof GifDrawableCompat) {
+
         }
         return null;
     }

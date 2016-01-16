@@ -22,6 +22,7 @@ import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Animatable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.SystemClock;
 
 import java.io.IOException;
@@ -63,6 +64,7 @@ public class GifDrawableCompat extends Drawable implements Animatable {
     public int getIntrinsicHeight() { return mSrcRect.height(); }
 
     private void nextFrame() {
+        if (!mStarted) return;
         mDecoder.advance();
         mFrame = mDecoder.getNextFrame();
         invalidateSelf();
@@ -71,7 +73,7 @@ public class GifDrawableCompat extends Drawable implements Animatable {
     @Override
     public void start() {
         mStarted = true;
-        scheduleSelf(updateRunable,SystemClock.uptimeMillis()+mDecoder.getNextDelay());
+        scheduleSelf(updateRunable, SystemClock.uptimeMillis() + mDecoder.getNextDelay());
     }
 
     @Override
@@ -103,5 +105,24 @@ public class GifDrawableCompat extends Drawable implements Animatable {
     @Override
     public int getOpacity() {
         return PixelFormat.TRANSPARENT;
+    }
+
+    public void release() {
+        if (mStarted) {
+            mStarted = false;
+            unscheduleSelf(updateRunable);
+        }
+        mDecoder = null;
+    }
+
+
+    public int getAllocationByteCount() {
+        int size = 0;
+        if (mFrame!=null) if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1) {
+            size += mFrame.getByteCount();
+        } else {
+            size += mFrame.getWidth() * mFrame.getHeight() * 3;
+        }
+        return size + (mDecoder == null ? 0 : mDecoder.getByteCount());
     }
 }

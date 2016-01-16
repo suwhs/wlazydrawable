@@ -127,6 +127,10 @@ public class GifDecoder {
     protected int framePointer;
     protected int frameCount;
 
+    public int getByteCount() {
+        return rawData==null ? 0 : rawData.array().length;
+    }
+
     /**
      * Inner model class housing metadata for each frame
      */
@@ -151,7 +155,7 @@ public class GifDecoder {
      * Move the animation frame counter forward
      */
     public void advance() {
-        framePointer = (framePointer + 1) % frameCount;
+        framePointer = frameCount>0 ? (framePointer + 1) % frameCount : 0;
     }
 
     /**
