@@ -246,7 +246,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
                 Log.w("LazyDrawable", "Loading Drawable are null!");
             }
         }
-        canvas.drawRect(mBounds.left+5,mBounds.top+5,mBounds.right-5,mBounds.bottom-5,dbgPaint);
+        /* canvas.drawRect(mBounds.left+5,mBounds.top+5,mBounds.right-5,mBounds.bottom-5,dbgPaint); */
     }
 
     /**
@@ -399,11 +399,6 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     protected void setSize(int srcWidth, int srcHeight) {
         mRealWidth = srcWidth;
         mRealHeight = srcHeight;
-//        mBounds.right = mBounds.left + srcWidth;
-//        mBounds.bottom = mBounds.top + srcHeight;
-//        if (mDrawable!=null) {
-//            applyBounds(mDrawable);
-//        }
     }
 
     private void drawDrawable(Canvas canvas, Drawable drawable) {
@@ -570,7 +565,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             stop();
         }
         mDrawable = drawable;
-        mIsError = (drawable == null);
+        // mIsError = (drawable == null);
         if (mDrawable!=null) {
             applyBounds(drawable);
             mDrawable.setCallback(this);

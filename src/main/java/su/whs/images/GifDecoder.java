@@ -712,6 +712,7 @@ public class GifDecoder {
      * Reads next frame image
      */
     protected void readBitmap() {
+        if (currentFrame == null) currentFrame = new GifFrame();
         currentFrame.ix = readShort(); // (sub)image position & size
         currentFrame.iy = readShort();
         currentFrame.iw = readShort();
