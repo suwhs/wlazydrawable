@@ -32,9 +32,11 @@ import android.os.SystemClock;
 import android.support.v7.appcompat.BuildConfig;
 import android.util.Log;
 
+import java.util.Comparator;
 import java.util.WeakHashMap;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Future;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +60,6 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     private Drawable mLoadingDrawable = null;
     private Drawable mErrorDrawable = null;
     private Drawable mPlaceholderDrawable = null;
-    private boolean mIsLoading = false;
     private boolean mIsError = false;
     private Object mExecutorTag = null;
     protected Rect mBounds = new Rect();
@@ -66,7 +67,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     private int mEdgeColor = Color.WHITE;
     private int mRealWidth = -1;
     private int mRealHeight = -1;
-
+    private int mLoadingPriority = 0;
     /**
      *
      * @param executorTag - tag for queue
@@ -79,7 +80,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         mScaleType = scaleType;
         setSize(srcWidth,srcHeight);
     }
+    public synchronized void setLoadingPriority(int priority) {
+        mLoadingPriority = priority;
+    }
 
+    public synchronized int getLoadingPriority() { return mLoadingPriority; }
     /*
         on AOSP < 11 this method must be used instead setCallback()
      */
@@ -100,18 +105,31 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
-    public synchronized boolean isLoading() { return mIsLoading; }
+    public boolean isLoading() { return mInitialLoadingRunnable.isRunning(); }
 
     public synchronized void Unload() {
         setDrawable(null);
         synchronized (this) {
-            mIsLoading = false;
             mIsError = false;
             mDrawable = null;
         }
     }
 
     public abstract void onVisibilityChanged(boolean visible);
+
+    public synchronized int getWrappedDrawableWidth() {
+        if (mDrawable!=null) {
+            return mDrawable.getIntrinsicWidth();
+        }
+        return getIntrinsicWidth();
+    }
+
+    public synchronized int getWrappedDrawableHeight() {
+        if (mDrawable!=null) {
+            return mDrawable.getIntrinsicHeight();
+        }
+        return getIntrinsicHeight();
+    }
 
     /**
      * ScaleType (if real image geometry different to srcWidth/srcHeight, passed with constuctor
@@ -133,9 +151,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * @return ThreadPoolExecute for tag
      */
 
-    private static synchronized ThreadPoolExecutor getExecutorWithTag(Object tag) {
-        if (!executor.containsKey(tag))
-            executor.put(tag, new CustomThreadPoolExecutor(1, 3, 100L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(100)));
+    private static synchronized ThreadPoolExecutor getExecutorWithTag(Object tag, int poolSize, int maxPoolSize) {
+        if (!executor.containsKey(tag)) {
+            BlockingQueue<Runnable> bq = new PriorityBlockingQueue<>(5, new RunnableComparator());
+            executor.put(tag, new CustomThreadPoolExecutor(poolSize, maxPoolSize, 100L, TimeUnit.SECONDS, bq));
+        }
         return executor.get(tag);
     }
 
@@ -157,7 +177,6 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * handle loading error
      */
     protected synchronized void handleLoadError() {
-        mIsLoading = false;
         mIsError = true;
         onLoadingError();
         invalidateSelfOnUiThread();
@@ -166,10 +185,27 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     /**
      * background loading
      */
-    private Runnable mInitialLoadingRunnable = new LoadingRunnable() {
+    private LoadingRunnable mInitialLoadingRunnable = new LoadingRunnable() {
+        private boolean mCancelled = false;
+        private boolean mIsRunning = false;
+
+        @Override
+        public int getPriority() {
+            return LazyDrawable.this.getLoadingPriority();
+        }
+
         @Override
         public void run() {
-            Drawable d = readDrawable();
+            boolean _cancelled = false;
+            synchronized (this) { _cancelled = mCancelled; }
+            if (_cancelled) { uncancel(); return; }
+            Drawable d = null;
+            try {
+                synchronized (this) { mIsRunning = true; }
+                 d = readDrawable();
+            } finally {
+                synchronized (this) { mIsRunning = false; }
+            }
             if (d==null) {
                 handleLoadError();
             } else {
@@ -184,21 +220,20 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
 
         @Override
-        public void cancel() {
+        public synchronized void cancel() {
+            mCancelled = true;
+        }
 
+        @Override
+        public synchronized void uncancel() {
+            mCancelled = false;
+        }
+
+        @Override
+        public synchronized boolean isRunning() {
+            return mIsRunning;
         }
     };
-
-    /**
-     * set Loading state (if true - draw() method will draw progress image
-     * @param loading - true/false
-     */
-
-    protected synchronized void setLoadingState(boolean loading) {
-        if (loading==mIsLoading) return;
-        mIsLoading = loading;
-        invalidateSelfOnUiThread();
-    }
 
     /**
      * if Drawable loaded - draw it using {#ScaleType}, or draw loading progress, or draw error sign
@@ -220,17 +255,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         if (d!=null) drawDrawable(canvas,d); else if (BuildConfig.DEBUG) {
             d = null;
         }
-
         if (mLoadingDrawable!=null && !isError) {
-            boolean isLoading;
-            synchronized (this) {
-                isLoading = mIsLoading;
-            }
-            if (!isLoading && d == null) { // start loading if no drawable
-                isLoading = true;
+            if (!isLoading() && d == null) { // start loading if no drawable
                 load();
             }
-            if (isLoading) {
+            if (isLoading()) {
                 drawNextLoadingFrame(canvas);
                 scheduleSelf(new Runnable() {
                         @Override
@@ -277,8 +306,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * @return ThreadPoolExecutor
      */
     protected ThreadPoolExecutor getExecutor() {
-        return getExecutorWithTag(mExecutorTag);
+        return getExecutorWithTag(mExecutorTag,getExecutorPoolSize(),getExecutorMaxPoolSize());
     }
+
+    protected int getExecutorPoolSize() { return 3; }
+    protected int getExecutorMaxPoolSize() { return 10; }
 
     /**
      * set loading progress drawable
@@ -328,7 +360,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     private void applyBounds(Drawable drawable) {
         if (mBounds.width()==0 || mBounds.height()==0) {
             synchronized (this) {
-                mIsError = true;
+                Log.e(TAG,"WARNING: bounds size are zero");
             }
             invalidateSelfOnUiThread();
             return;
@@ -554,7 +586,6 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     protected synchronized void handleLoadFinish() {
-        mIsLoading = false;
         invalidateSelfOnUiThread();
     }
 
@@ -592,12 +623,14 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
-    protected abstract class LoadingRunnable implements Runnable {
+    protected abstract class LoadingRunnable extends ComparableRunnable {
         public abstract void onExecutionFailed(Throwable t);
         public abstract void cancel();
+        public abstract void uncancel();
+        public abstract boolean isRunning();
     }
 
-    static class CustomThreadPoolExecutor extends ThreadPoolExecutor {
+    protected static class CustomThreadPoolExecutor extends ThreadPoolExecutor {
         private boolean mIsCancelled = false;
         public CustomThreadPoolExecutor(
                 int corePoolSize, int maximumPoolSize, long keepAliveTime,
@@ -618,6 +651,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
 
         @Override
+        public Future<?> submit(Runnable task) {
+            return super.submit(task);
+        }
+
+        @Override
         public void afterExecute(Runnable r, Throwable t) {
             super.afterExecute(r, t);
             if (t != null && r instanceof LoadingRunnable) {
@@ -633,12 +671,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     protected synchronized void retry() {
-        mIsLoading = false;
         mIsError = false;
+        mInitialLoadingRunnable.uncancel();
     }
 
     public synchronized void load() {
-        mIsLoading = true;
         try {
             getExecutor().execute(mInitialLoadingRunnable);
         } catch (RejectedExecutionException e) {
@@ -647,5 +684,21 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
+    public synchronized void stopLoading() {
+        mInitialLoadingRunnable.cancel();
+    }
+
     protected abstract int getSampling();
+
+    static abstract class ComparableRunnable implements Runnable {
+        public abstract int getPriority();
+    }
+
+    public static class RunnableComparator implements Comparator<Runnable> {
+        public int compare(Runnable r1, Runnable r2){
+            ComparableRunnable t1 = (ComparableRunnable)r1;
+            ComparableRunnable t2 = (ComparableRunnable)r2;
+            return t1.getPriority()-t2.getPriority();
+        }
+    }
 }

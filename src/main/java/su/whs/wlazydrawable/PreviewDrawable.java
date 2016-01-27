@@ -30,32 +30,59 @@ public abstract class PreviewDrawable extends LazyDrawable {
         return super.isRunning();
     }
 
-    public void loadFullDrawable() {
-        setLoadingState(true);
-        getExecutor().execute(new LoadingRunnable() {
-            @Override
-            public void onExecutionFailed(Throwable t) {
+    private LoadingRunnable mFullLoadingRunnable = new LoadingRunnable() {
+        private boolean mCancelled = false;
+        private boolean mIsRunning = false;
+        @Override
+        public int getPriority() {
+            return PreviewDrawable.this.getLoadingPriority();
+        }
+
+        @Override
+        public void onExecutionFailed(Throwable t) {
+            handleLoadError();
+        }
+
+        @Override
+        public synchronized void cancel() {
+            mCancelled = true;
+        }
+
+        @Override
+        public synchronized void uncancel() {
+            mCancelled = false;
+        }
+
+        @Override
+        public synchronized boolean isRunning() {
+            return mIsRunning;
+        }
+
+        @Override
+        public void run() {
+            boolean _cancelled = false;
+            synchronized (this) { _cancelled = mCancelled; }
+            if (_cancelled) { uncancel(); return; }
+            Drawable full = null;
+            try {
+                synchronized (this) { mIsRunning = true; }
+                getFullDrawable();
+            } finally {
+                synchronized (this) { mIsRunning = false; }
+            }
+            if (full!=null) {
+                synchronized (PreviewDrawable.this) {
+                    setDrawable(full);
+                }
+                handleLoadFinish();
+            } else {
                 handleLoadError();
             }
+        }
+    };
 
-            @Override
-            public void cancel() {
-
-            }
-
-            @Override
-            public void run() {
-                Drawable full = getFullDrawable();
-                if (full!=null) {
-                    synchronized (PreviewDrawable.this) {
-                        setDrawable(full);
-                    }
-                    handleLoadFinish();
-                } else {
-                    handleLoadError();
-                }
-            }
-        });
+    public void loadFullDrawable() {
+        getExecutor().execute(mFullLoadingRunnable);
     }
 
     @Override
@@ -74,5 +101,10 @@ public abstract class PreviewDrawable extends LazyDrawable {
 
         }
         return null;
+    }
+
+    @Override
+    public boolean isLoading() {
+        return super.isLoading() || mFullLoadingRunnable.isRunning();
     }
 }

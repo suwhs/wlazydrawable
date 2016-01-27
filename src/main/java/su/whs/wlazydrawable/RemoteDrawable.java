@@ -63,7 +63,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
 
     public RemoteDrawable(Context context, String url, String mime, int width, int height) {
         super(context,width, height);
-        mMemoryLimitPool = MemoryLimitPool.getInstance(context);
+        mMemoryLimitPool = getMemoryLimitPool(context);
 
         if (Runtime.getRuntime().maxMemory()<100000000)
             mStreamSampling = 4;
@@ -114,7 +114,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         return gifExecutor;
     }
 
-    private Drawable readGifPreview() throws IOException {
+    protected Drawable readGifPreview() throws IOException {
         GifDecoder decoder = new GifDecoder();
         try {
             decoder.read(getInputStream(mUrl), 0);
@@ -269,6 +269,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         mMemoryLimitPool.recycle(mUrl);
         super.Unload();
     }
-    protected MemoryLimitPool getMemoryLimitPool() { return mMemoryLimitPool; }
+    protected MemoryLimitPool getMemoryLimitPool(Object context) { return MemoryLimitPool.getInstance(this); }
     protected abstract InputStream getInputStream(String u) throws IOException;
+    public boolean isGif() { return mIsGif; }
 }

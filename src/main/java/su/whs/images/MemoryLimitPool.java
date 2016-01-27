@@ -1,11 +1,11 @@
 package su.whs.images;
 
-import android.content.Context;
+import android.util.Log;
 
 import java.lang.ref.WeakReference;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 import su.whs.wlazydrawable.LazyDrawable;
 import su.whs.wlazydrawable.RemoteDrawable;
@@ -14,13 +14,15 @@ import su.whs.wlazydrawable.RemoteDrawable;
  * Created by igor n. boulliev on 04.11.15.
  */
 public class MemoryLimitPool {
-    public static Map<Context,MemoryLimitPool> mContextDependedPools = new HashMap<Context,MemoryLimitPool>();
-    private static int MAX_CACHED_ITEMS = 100;
+    private static final String TAG="MemoryLimitPool";
+    public static WeakHashMap<Object,MemoryLimitPool> mContextDependedPools = new WeakHashMap<Object,MemoryLimitPool>();
+    private static int MAX_CACHED_ITEMS = 20; // TODO: create getter ?
 
-    private Context mContext;
+    private Object mContext;
     private LruCache<String,WeakReference<LazyDrawable>> mRemoteDrawables = new LruCache<String,WeakReference<LazyDrawable>>(MAX_CACHED_ITEMS) {
         @Override
         protected boolean removeEldestEntry(Entry eldest) {
+            Log.e(TAG, "removeEldestEntry:"+eldest+" now size:"+size());
             boolean result = super.removeEldestEntry(eldest);
             if (result) {
                 RemoteDrawable remoteDrawable = ((WeakReference<RemoteDrawable>) eldest.getValue()).get();
@@ -31,11 +33,11 @@ public class MemoryLimitPool {
         }
     };
 
-    private MemoryLimitPool(Context context) {
+    private MemoryLimitPool(Object context) {
         mContext = context;
     }
 
-    public static MemoryLimitPool getInstance(Context context) {
+    public static MemoryLimitPool getInstance(Object context) {
         if (!mContextDependedPools.containsKey(context))
             mContextDependedPools.put(context,new MemoryLimitPool(context));
         return mContextDependedPools.get(context);
