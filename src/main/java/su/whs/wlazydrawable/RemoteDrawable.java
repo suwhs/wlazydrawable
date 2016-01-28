@@ -63,7 +63,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
 
     public RemoteDrawable(Context context, String url, String mime, int width, int height) {
         super(context,width, height);
-        mMemoryLimitPool = getMemoryLimitPool(context);
+        mMemoryLimitPool = buildMemoryLimitPool(context);
 
         if (Runtime.getRuntime().maxMemory()<100000000)
             mStreamSampling = 4;
@@ -78,6 +78,10 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         if (width>0 && height>0) {
             setSize(width,height);
         }
+    }
+
+    protected MemoryLimitPool buildMemoryLimitPool(Context context) {
+        return MemoryLimitPool.getInstance(context);
     }
 
     protected int getSampling() { return mStreamSampling; }
@@ -241,7 +245,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
 
     @Override
     public void onVisibilityChanged(boolean visible) {
-        if (visible) mMemoryLimitPool.updateLruMark(mUrl,this); // move drawable on top of cache
+        if (visible && mMemoryLimitPool!=null) mMemoryLimitPool.updateLruMark(mUrl,this); // move drawable on top of cache
     }
 
     private void setInfoDrawables(Context context) {
@@ -266,10 +270,11 @@ public abstract class RemoteDrawable extends PreviewDrawable {
             if (bmp!=null)
                 bmp.recycle();
         }
-        mMemoryLimitPool.recycle(mUrl);
+        if (mMemoryLimitPool!=null)
+            mMemoryLimitPool.recycle(mUrl);
         super.Unload();
     }
-    protected MemoryLimitPool getMemoryLimitPool(Object context) { return MemoryLimitPool.getInstance(this); }
+    protected MemoryLimitPool getMemoryLimitPool() { return mMemoryLimitPool; }
     protected abstract InputStream getInputStream(String u) throws IOException;
     public boolean isGif() { return mIsGif; }
 }

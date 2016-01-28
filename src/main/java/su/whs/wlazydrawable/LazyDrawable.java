@@ -191,7 +191,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
         @Override
         public int getPriority() {
-            return LazyDrawable.this.getLoadingPriority();
+            return 0;
         }
 
         @Override
@@ -256,9 +256,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             d = null;
         }
         if (mLoadingDrawable!=null && !isError) {
-            if (!isLoading() && d == null) { // start loading if no drawable
-                load();
-            }
+            load();
             if (isLoading()) {
                 drawNextLoadingFrame(canvas);
                 scheduleSelf(new Runnable() {
@@ -465,7 +463,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
         shader = new LinearGradient(0, mBounds.bottom-mVerticalEdgeSize, 0, mBounds.bottom, Color.TRANSPARENT, mEdgeColor, Shader.TileMode.CLAMP);
         mEdgePaint.setShader(shader);
-        canvas.drawRect(0,mBounds.bottom-mVerticalEdgeSize,mBounds.right,mBounds.bottom,mEdgePaint);
+        canvas.drawRect(0, mBounds.bottom - mVerticalEdgeSize, mBounds.right, mBounds.bottom, mEdgePaint);
     }
 
     private void drawHorizontalEdges(Canvas canvas) {
@@ -579,10 +577,17 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      */
 
     protected void onDrawableReleased(Drawable drawable) {
-        if (drawable!=null && drawable instanceof BitmapDrawable) {
+        if (drawable==null) return;
+        drawable.setCallback(null);
+        if (drawable instanceof BitmapDrawable) {
             Bitmap bmp = ((BitmapDrawable)drawable).getBitmap();
-            bmp.recycle();
+            recycleBitmap(bmp);
         }
+    }
+
+    protected void recycleBitmap(Bitmap bmp) {
+        if (bmp!=null && !bmp.isRecycled())
+            bmp.recycle();
     }
 
     protected synchronized void handleLoadFinish() {
@@ -676,8 +681,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     public synchronized void load() {
+        if (mDrawable!=null||isLoading()) return;
+        ThreadPoolExecutor executor = getExecutor();
+        if (executor.getQueue().contains(mInitialLoadingRunnable)) return;
         try {
-            getExecutor().execute(mInitialLoadingRunnable);
+            executor.execute(mInitialLoadingRunnable);
         } catch (RejectedExecutionException e) {
             Log.e(TAG,"too mach task!");
             handleLoadError();

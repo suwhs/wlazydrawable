@@ -3,6 +3,7 @@ package su.whs.wlazydrawable;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.util.Log;
 
 import su.whs.images.GifDrawableCompat;
 
@@ -10,6 +11,7 @@ import su.whs.images.GifDrawableCompat;
  * Created by igor n. boulliev <igor@whs.su> on 05.12.15.
  */
 public abstract class PreviewDrawable extends LazyDrawable {
+    private static final String TAG="PreviewDrawable";
 
     public PreviewDrawable(Object executorTag, int srcWidth, int srcHeight) {
         super(executorTag, srcWidth, srcHeight, ScaleType.SCALE_FIT);
@@ -40,7 +42,7 @@ public abstract class PreviewDrawable extends LazyDrawable {
 
         @Override
         public void onExecutionFailed(Throwable t) {
-            handleLoadError();
+            handleLoadErrorOnFullDrawable();
         }
 
         @Override
@@ -66,7 +68,7 @@ public abstract class PreviewDrawable extends LazyDrawable {
             Drawable full = null;
             try {
                 synchronized (this) { mIsRunning = true; }
-                getFullDrawable();
+                full = getFullDrawable();
             } finally {
                 synchronized (this) { mIsRunning = false; }
             }
@@ -76,7 +78,7 @@ public abstract class PreviewDrawable extends LazyDrawable {
                 }
                 handleLoadFinish();
             } else {
-                handleLoadError();
+                handleLoadErrorOnFullDrawable();
             }
         }
     };
@@ -106,5 +108,9 @@ public abstract class PreviewDrawable extends LazyDrawable {
     @Override
     public boolean isLoading() {
         return super.isLoading() || mFullLoadingRunnable.isRunning();
+    }
+
+    protected void handleLoadErrorOnFullDrawable() {
+        Log.e(TAG, "error loading full drawable");
     }
 }
