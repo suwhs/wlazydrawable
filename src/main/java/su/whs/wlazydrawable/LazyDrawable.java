@@ -435,6 +435,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         int state = canvas.save();
         canvas.clipRect(mBounds);
         if (drawable!=null) {
+            validateDrawable(drawable);
             drawable.draw(canvas);
             if (mScaleType == ScaleType.CENTER_CROP) {
                 if (drawable.getBounds().height() > mBounds.height()) {
@@ -707,6 +708,16 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             ComparableRunnable t1 = (ComparableRunnable)r1;
             ComparableRunnable t2 = (ComparableRunnable)r2;
             return t1.getPriority()-t2.getPriority();
+        }
+    }
+
+    private void validateDrawable(Drawable d) {
+        if (d instanceof BitmapDrawable) {
+            Bitmap bmp = ((BitmapDrawable) d).getBitmap();
+            if (bmp.isRecycled()) {
+                Log.e(TAG,"Bitmap are recycled!");
+                Log.e(TAG,"this="+this);
+            }
         }
     }
 }

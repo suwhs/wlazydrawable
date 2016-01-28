@@ -267,8 +267,7 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         Drawable d = getDrawable();
         if (d!=null && d instanceof BitmapDrawable) {
             Bitmap bmp = ((BitmapDrawable)d).getBitmap();
-            if (bmp!=null)
-                bmp.recycle();
+            recycleBitmap(bmp);
         }
         if (mMemoryLimitPool!=null)
             mMemoryLimitPool.recycle(mUrl);
