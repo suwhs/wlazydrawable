@@ -12,6 +12,7 @@ import su.whs.images.GifDrawableCompat;
  */
 public abstract class PreviewDrawable extends LazyDrawable {
     private static final String TAG="PreviewDrawable";
+    private boolean mFullVersionLoaded = false;
 
     public PreviewDrawable(Object executorTag, int srcWidth, int srcHeight) {
         super(executorTag, srcWidth, srcHeight, ScaleType.SCALE_FIT);
@@ -75,6 +76,7 @@ public abstract class PreviewDrawable extends LazyDrawable {
             if (full!=null) {
                 synchronized (PreviewDrawable.this) {
                     setDrawable(full);
+                    mFullVersionLoaded = true;
                 }
                 handleLoadFinish();
             } else {
@@ -112,5 +114,9 @@ public abstract class PreviewDrawable extends LazyDrawable {
 
     protected void handleLoadErrorOnFullDrawable() {
         Log.e(TAG, "error loading full drawable");
+    }
+
+    public boolean isFullVersion() {
+        return mFullVersionLoaded;
     }
 }

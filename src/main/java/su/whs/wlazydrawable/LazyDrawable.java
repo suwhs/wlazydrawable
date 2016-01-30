@@ -131,6 +131,12 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         return getIntrinsicHeight();
     }
 
+    public void getWrappedDrawableBounds(Rect lazyRect) {
+        if (mDrawable!=null) {
+            lazyRect.set(mDrawable.getBounds());
+        }
+    }
+
     /**
      * ScaleType (if real image geometry different to srcWidth/srcHeight, passed with constuctor
      */
@@ -431,11 +437,16 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         mRealHeight = srcHeight;
     }
 
+    public synchronized Drawable takeDrawable() {
+        Drawable result = mDrawable;
+        mDrawable = null;
+        return result;
+    }
+
     private void drawDrawable(Canvas canvas, Drawable drawable) {
         int state = canvas.save();
         canvas.clipRect(mBounds);
         if (drawable!=null) {
-            validateDrawable(drawable);
             drawable.draw(canvas);
             if (mScaleType == ScaleType.CENTER_CROP) {
                 if (drawable.getBounds().height() > mBounds.height()) {
@@ -707,17 +718,8 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         public int compare(Runnable r1, Runnable r2){
             ComparableRunnable t1 = (ComparableRunnable)r1;
             ComparableRunnable t2 = (ComparableRunnable)r2;
+            if  (t1.getPriority()==t2.getPriority()) return -1;
             return t1.getPriority()-t2.getPriority();
-        }
-    }
-
-    private void validateDrawable(Drawable d) {
-        if (d instanceof BitmapDrawable) {
-            Bitmap bmp = ((BitmapDrawable) d).getBitmap();
-            if (bmp.isRecycled()) {
-                Log.e(TAG,"Bitmap are recycled!");
-                Log.e(TAG,"this="+this);
-            }
         }
     }
 }
