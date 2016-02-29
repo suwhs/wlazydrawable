@@ -258,20 +258,19 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             d = mDrawable;
             isError = mIsError;
         }
-        if (d!=null) drawDrawable(canvas,d); else if (BuildConfig.DEBUG) {
-            d = null;
-        }
-        if (mLoadingDrawable!=null && !isError) {
+        if (d!=null) {
+            drawDrawable(canvas,d);
+        } else {
             load();
-            if (isLoading()) {
-                drawNextLoadingFrame(canvas);
-                scheduleSelf(new Runnable() {
-                        @Override
-                        public void run() {
-                            invalidateSelf();
-                        }
-                    }, SystemClock.uptimeMillis()+60);
-            }
+        }
+        if (mLoadingDrawable!=null && !isError && isLoading()) {
+            drawNextLoadingFrame(canvas);
+            scheduleSelf(new Runnable() {
+                @Override
+                public void run() {
+                    invalidateSelf();
+                }
+            }, SystemClock.uptimeMillis()+60);
         } else if (isError) {
             drawLoadError(canvas);
         } else {
@@ -378,27 +377,35 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             invalidateSelfOnUiThread();
             return;
         }
+        int dW;
+        int dH;
+        int sX;
+        int sY;
         switch (mScaleType) {
             case NONE:
                 drawable.setBounds(mBounds);
                 break;
             case FILL: // combination of center_crop and scale_fit
-                if (w<mBounds.width() && h<mBounds.height()) {
-                    int dW = mBounds.width() - w;
-                    int dH = mBounds.height() - h;
-                    int sX = dW / 2;
-                    int sY = dH / 2;
-                    drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
-                    break;
-                }
-                float sH = (float)mBounds.height() / h;
-                float sW = (float)mBounds.width() / w;
-                float ratio = sW > sH ? sH : sW;
-                int dW = (int) (ratio < 1f ? (w * ratio) : w);
-                int dH = (int) (ratio < 1f ? (h * ratio) : h);
-                int sX = (mBounds.width()-dW) / 2;
-                int sY = (mBounds.height()-dH) / 2;
-                drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
+//                if (w<mBounds.width() && h<mBounds.height()) {
+//                    int dW = mBounds.width() - w;
+//                    int dH = mBounds.height() - h;
+//                    int sX = dW / 2;
+//                    int sY = dH / 2;
+//                    drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
+//                    break;
+//                }
+//                float sH = (float)mBounds.height() / h;
+//                float sW = (float)mBounds.width() / w;
+//                float ratio = sW > sH ? sH : sW;
+//                int dW = (int) (ratio < 1f ? (w * ratio) : w);
+//                int dH = (int) (ratio < 1f ? (h * ratio) : h);
+//                int sX = (mBounds.width()-dW) / 2;
+//                int sY = (mBounds.height()-dH) / 2;
+//                drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
+
+                Rect result = new Rect();
+                calcCenter(mBounds.width(),mBounds.height(),w,h,false,result);
+                drawable.setBounds(result.left,result.top,result.right,result.bottom);
                 break;
             case CENTER_CROP:
                 dW = mBounds.width() - w;
@@ -408,21 +415,24 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
                 drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
                 break;
             case SCALE_FIT:
-                if (w<1||h<1) {
-                    synchronized (this) {
-                        mIsError = true;
-                    }
-                    invalidateSelfOnUiThread();
-                    return;
-                }
-                sH = (float)mBounds.height() / h;
-                sW = (float)mBounds.width() / w;
-                ratio = sW > sH ? sH : sW;
-                dW = (int) (ratio < 1f ? (w * ratio) : w);
-                dH = (int) (ratio < 1f ? (h * ratio) : h);
-                sX = (mBounds.width()-dW) / 2;
-                sY = (mBounds.height()-dH) / 2;
-                drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
+//                if (w<1||h<1) {
+//                    synchronized (this) {
+//                        mIsError = true;
+//                    }
+//                    invalidateSelfOnUiThread();
+//                    return;
+//                }
+//                sH = (float)mBounds.height() / h;
+//                sW = (float)mBounds.width() / w;
+//                ratio = sW > sH ? sH : sW;
+//                dW = (int) (ratio < 1f ? (w * ratio) : w);
+//                dH = (int) (ratio < 1f ? (h * ratio) : h);
+//                sX = (mBounds.width()-dW) / 2;
+//                sY = (mBounds.height()-dH) / 2;
+                result = new Rect();
+                calcCenter(mBounds.width(),mBounds.height(),w,h,true    ,result);
+                drawable.setBounds(result.left,result.top,result.right,result.bottom);
+//                drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
                 break;
         }
     }
@@ -443,9 +453,15 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         return result;
     }
 
+    private Paint dbgPaintRed = new Paint();
+    {
+        dbgPaintRed.setStyle(Paint.Style.STROKE);
+        dbgPaintRed.setColor(Color.RED);
+    }
     private void drawDrawable(Canvas canvas, Drawable drawable) {
         int state = canvas.save();
-        canvas.clipRect(mBounds);
+        canvas.drawRect(mBounds,dbgPaint);
+//        canvas.clipRect(mBounds);
         if (drawable!=null) {
             drawable.draw(canvas);
             if (mScaleType == ScaleType.CENTER_CROP) {
@@ -722,4 +738,32 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             return t1.getPriority()-t2.getPriority();
         }
     }
+
+    /**
+     * Calculate the bounds of an image to fit inside a view after scaling and keeping the aspect ratio.
+     * @param vw container view width
+     * @param vh container view height
+     * @param iw image width
+     * @param ih image height
+     * @param neverScaleUp if <code>true</code> then it will scale images down but never up when fiting
+     * @param out Rect that is provided to receive the result. If <code>null</code> then a new rect will be created
+     * @return Same rect object that was provided to the method or a new one if <code>out</code> was <code>null</code>
+     */
+    public static Rect calcCenter (int vw, int vh, int iw, int ih, boolean neverScaleUp, Rect out) {
+
+        double scale = Math.min((double) vw / (double) iw, (double) vh / (double) ih);
+
+        int h = (int)(!neverScaleUp || scale<1.0 ? scale * ih : ih);
+        int w = (int)(!neverScaleUp || scale<1.0 ? scale * iw : iw);
+        int x = ((vw - w)>>1);
+        int y = ((vh - h)>>1);
+
+        if (out == null)
+            out = new Rect( x, y, x + w, y + h );
+        else
+            out.set( x, y, x + w, y + h );
+
+        return out;
+    }
+
 }

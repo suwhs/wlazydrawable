@@ -87,6 +87,7 @@ public abstract class PreviewDrawable extends LazyDrawable {
 
     public void loadFullDrawable() {
         getExecutor().execute(mFullLoadingRunnable);
+        invalidateSelf();
     }
 
     @Override
