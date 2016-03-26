@@ -18,7 +18,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -167,6 +166,11 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         return readBitmap(mUrl);
     }
 
+    /**
+     * workaround for cases, where getInputStream(url) returns stream without mark support
+     * @param bis
+     * @return
+     */
     private boolean needReopen(BufferedInputStream bis) {
         try {
             bis.reset();
@@ -230,24 +234,35 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         super.start();
     }
 
+    /**
+     *
+     * @return url for remote image preview
+     */
     public String getUrl() {
         return mUrl;
     }
 
+    /**
+     *
+     * @return url for remote image
+     */
     public String getFullUrl() {
         return mFullUrl == null ? mUrl : mFullUrl;
     }
 
-    @Override
-    public void draw(Canvas canvas) {
-        super.draw(canvas);
-    }
-
+    /**
+     * if visible == true - notify cache usage
+     * @param visible
+     */
     @Override
     public void onVisibilityChanged(boolean visible) {
         if (visible && mMemoryLimitPool!=null) mMemoryLimitPool.updateLruMark(mUrl,this); // move drawable on top of cache
     }
 
+    /**
+     * initialize default state drawables (loading/error/placeholder)
+     * @param context
+     */
     private void setInfoDrawables(Context context) {
         Drawable loading = context.getResources().getDrawable(R.mipmap.ic_progress_gray);
         loading.setBounds(0, 0, loading.getIntrinsicWidth(), loading.getIntrinsicHeight());
@@ -261,7 +276,9 @@ public abstract class RemoteDrawable extends PreviewDrawable {
         // loading.setBounds(0, 0, loading.getIntrinsicWidth(), loading.getIntrinsicHeight());
     }
 
-
+    /**
+     * remove bitmap from lru cache
+     */
     @Override
     public void Unload() {
         Drawable d = getDrawable();
@@ -273,7 +290,19 @@ public abstract class RemoteDrawable extends PreviewDrawable {
             mMemoryLimitPool.recycle(mUrl);
         super.Unload();
     }
+
+    /**
+     * override, if no default LRU cache required. NULL are valid result (no caching)
+     * @return MemoryLimitPool instance
+     */
     protected MemoryLimitPool getMemoryLimitPool() { return mMemoryLimitPool; }
-    protected abstract InputStream getInputStream(String u) throws IOException;
+
+    /**
+     * required method to provide inputStream for given url
+     * @param url - by default - preview url, if preview image required, full url if loadFullDrawable() called
+     * @return must be InputStream instance
+     * @throws IOException if some error
+     */
+    protected abstract InputStream getInputStream(String url) throws IOException;
     public boolean isGif() { return mIsGif; }
 }
