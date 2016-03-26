@@ -125,4 +125,8 @@ public class GifDrawableCompat extends Drawable implements Animatable {
         }
         return size + (mDecoder == null ? 0 : mDecoder.getByteCount());
     }
+
+    public Bitmap getBitmap() {
+        return mFrame;
+    }
 }
