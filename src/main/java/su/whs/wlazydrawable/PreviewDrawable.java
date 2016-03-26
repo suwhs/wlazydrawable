@@ -1,6 +1,8 @@
 package su.whs.wlazydrawable;
 
+import android.content.res.Resources;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
@@ -119,5 +121,14 @@ public abstract class PreviewDrawable extends LazyDrawable {
 
     public boolean isFullVersion() {
         return mFullVersionLoaded;
+    }
+
+    public void resampleToBounds() {
+        Bitmap bmp = Bitmap.createBitmap(mBounds.width(),mBounds.height(), Bitmap.Config.RGB_565);
+        Canvas canvas = new Canvas(bmp);
+        canvas.translate(-getBounds().left,-getBounds().right);
+        getDrawable().draw(canvas);
+        BitmapDrawable bitmapDrawable = new BitmapDrawable(Resources.getSystem(),bmp);
+        setDrawable(bitmapDrawable);
     }
 }

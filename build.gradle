@@ -24,4 +24,4 @@ dependencies {
     compile 'com.android.support:appcompat-v7:23.1.1'
 }
 
-// apply from: 'deploy.gradle'
+apply from: 'deploy.gradle'

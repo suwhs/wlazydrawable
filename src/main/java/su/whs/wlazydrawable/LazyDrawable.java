@@ -29,6 +29,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.support.annotation.CallSuper;
 import android.support.v7.appcompat.BuildConfig;
 import android.util.Log;
 
@@ -46,9 +47,9 @@ import java.util.concurrent.TimeUnit;
  */
 
 /**
- * abstract class for loading on demand drawable
- * for example, it may display local cached jpeg as preview, and load high quality png on
- * request
+ * abstract class for loading drawable 'on demand'
+ *
+ *
  *
  */
 
@@ -68,22 +69,34 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     private int mRealWidth = -1;
     private int mRealHeight = -1;
     private int mLoadingPriority = 0;
+    private boolean mDEBUG = true;
     /**
+     * create new LazyDrawable instance
+     *   if srcWidth & srcHeight equals image width and height - scaleType has no effect
      *
      * @param executorTag - tag for queue
-     * @param srcWidth    - source image width
-     * @param srcHeight   - source image height
-     * @param scaleType   - scale type
+     * @param srcWidth    - width of area, reserved for image
+     * @param srcHeight   - height of area, reserved for image
+     * @param scaleType   - scale type - for cases, where image width/height are unknown
      */
     public LazyDrawable(Object executorTag, int srcWidth, int srcHeight, ScaleType scaleType) {
         mExecutorTag = executorTag;
         mScaleType = scaleType;
         setSize(srcWidth,srcHeight);
     }
+
+    /**
+     * set priority for image - images with lowest priority will be pushed into head of queue
+     * @param priority - integer value
+     */
     public synchronized void setLoadingPriority(int priority) {
         mLoadingPriority = priority;
     }
 
+    /**
+     * actually, this method are called by executor's Comparator
+     * @return actual priority for image
+     */
     public synchronized int getLoadingPriority() { return mLoadingPriority; }
     /*
         on AOSP < 11 this method must be used instead setCallback()
@@ -97,6 +110,13 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         mCallbackCompat = cb;
     }
 
+    /**
+     * set ScaleType for image (if constructed width/height are not same that real image's width and height)
+     *
+     * @param scaleType
+     */
+
+    @CallSuper
     public void setScaleType(ScaleType scaleType) {
         if (mScaleType == scaleType) return;
         mScaleType = scaleType;
@@ -105,18 +125,37 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
+    /**
+     * for checking if loading process are started
+     * @return
+     */
     public boolean isLoading() { return mInitialLoadingRunnable.isRunning(); }
 
+    /**
+     * unload drawable from memory (default behavior - calls setDrawable(null)
+     */
+
+    @CallSuper
     public synchronized void Unload() {
         setDrawable(null);
+        mInitialLoadingRunnable.cancel();
         synchronized (this) {
             mIsError = false;
             mDrawable = null;
         }
     }
 
+    /**
+     * UNSTABLE
+     * @param visible
+     */
     public abstract void onVisibilityChanged(boolean visible);
 
+    /**
+     *
+     * @return width of loaded drawable, or width passed with constructor (if no drawable loaded yet)
+     */
+    @Deprecated
     public synchronized int getWrappedDrawableWidth() {
         if (mDrawable!=null) {
             return mDrawable.getIntrinsicWidth();
@@ -124,6 +163,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         return getIntrinsicWidth();
     }
 
+    /**
+     *
+     * @return height of loaded drawable, or height passed with constructor (if no drawable loaded yet)
+     */
+    @Deprecated
     public synchronized int getWrappedDrawableHeight() {
         if (mDrawable!=null) {
             return mDrawable.getIntrinsicHeight();
@@ -131,6 +175,11 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         return getIntrinsicHeight();
     }
 
+    /**
+     * returns actual bounds, applied to loaded drawable (within LazyDrawable.getBounds())
+     *  to calculate drawable real image rect - move coordinates to LazyDrawable.left/top
+     * @param lazyRect
+     */
     public void getWrappedDrawableBounds(Rect lazyRect) {
         if (mDrawable!=null) {
             lazyRect.set(mDrawable.getBounds());
@@ -142,8 +191,9 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      */
 
     public enum ScaleType {
+        /** no scale **/
         NONE,
-        /** fill entire srcWidth/srcHeight **/
+        /** fill entire srcWidth/srcHeight, with scale up **/
         FILL,
         /** scale to fit, if real width/height are bigger than passed to constructor **/
         SCALE_FIT,
@@ -167,6 +217,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
     /**
      * MUST returns Drawable on Demand
+     * WARNING: this method called from background thread
      * @return
      */
 
@@ -175,12 +226,15 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     /**
      * must be implemented - it's
      * called when readDrawable() returns NULL
+     * WARNING: this method called from background thread
+     *
      */
 
     protected abstract void onLoadingError();
 
     /**
      * handle loading error
+     * WARNING: this method called from background thread
      */
     protected synchronized void handleLoadError() {
         mIsError = true;
@@ -282,7 +336,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     /**
-     *
+     * see Drawable.Callback.scheduleDrawable()
      * @param who
      * @param what
      * @param when
@@ -293,26 +347,43 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             getCallbackCompat().scheduleDrawable(this, what, when);
     }
 
+    /**
+     * see Drawable.Callback.unscheduleDrawable()
+     * @param who
+     * @param what
+     */
     @Override
     public void unscheduleDrawable(Drawable who, Runnable what) {
         if (getCallbackCompat()!=null)
             getCallbackCompat().unscheduleDrawable(this, what);
     }
 
+    /**
+     * getCallback() not available for API < 11, so we provide getCallbackCompat() method
+     * @return
+     */
     private Drawable.Callback getCallbackCompat() {
         if (Build.VERSION.SDK_INT>10) return getCallback();
         return mCallbackCompat;
     }
 
     /**
-     *
+     * constructs (if need) thread pool executor
      * @return ThreadPoolExecutor
      */
     protected ThreadPoolExecutor getExecutor() {
         return getExecutorWithTag(mExecutorTag,getExecutorPoolSize(),getExecutorMaxPoolSize());
     }
 
+    /**
+     * @return executor pool size
+     */
     protected int getExecutorPoolSize() { return 3; }
+
+    /**
+     *
+     * @return executor max pool size
+     */
     protected int getExecutorMaxPoolSize() { return 10; }
 
     /**
@@ -333,6 +404,10 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
     public void setPlaceholderDrawable(Drawable drawable) { mPlaceholderDrawable = drawable; }
 
+    /**
+     *
+     * @return width, passed with constructor parameter srcWidth, or drawable intrinsicWidth()
+     */
     @Override
     public int getIntrinsicWidth() {
         // synchronized (this) { if (mDrawable!=null) return mDrawable.getIntrinsicWidth(); }
@@ -340,6 +415,10 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         return mRealWidth; //mBounds.width();
     }
 
+    /**
+     *
+     * @return height, passed with constructor parameter srcWidth, or drawable intrinsicHeight
+     */
     @Override
     public int getIntrinsicHeight() {
         // synchronized (this) { if (mDrawable!=null) return mDrawable.getIntrinsicHeight(); }
@@ -347,6 +426,13 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         return mRealHeight; // mBounds.height();
     }
 
+    /**
+     * {#Drawable.setBounds()}
+     * @param left
+     * @param top
+     * @param right
+     * @param bottom
+     */
     @Override
     public void setBounds(final int left, final int top, final int right, final int bottom) {
         mBounds.set(left,top,right,bottom);
@@ -360,6 +446,15 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         super.setBounds(left,top,right,bottom);
     }
 
+    @Override
+    public void setBounds(Rect bounds) {
+        setBounds(bounds.left,bounds.top,bounds.right,bounds.bottom);
+    }
+
+    /**
+     * apply bounds to loaded drawable; calculate scaled bounds if need
+     * @param drawable
+     */
     private void applyBounds(Drawable drawable) {
         if (mBounds.width()==0 || mBounds.height()==0) {
             synchronized (this) {
@@ -386,23 +481,6 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
                 drawable.setBounds(mBounds);
                 break;
             case FILL: // combination of center_crop and scale_fit
-//                if (w<mBounds.width() && h<mBounds.height()) {
-//                    int dW = mBounds.width() - w;
-//                    int dH = mBounds.height() - h;
-//                    int sX = dW / 2;
-//                    int sY = dH / 2;
-//                    drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
-//                    break;
-//                }
-//                float sH = (float)mBounds.height() / h;
-//                float sW = (float)mBounds.width() / w;
-//                float ratio = sW > sH ? sH : sW;
-//                int dW = (int) (ratio < 1f ? (w * ratio) : w);
-//                int dH = (int) (ratio < 1f ? (h * ratio) : h);
-//                int sX = (mBounds.width()-dW) / 2;
-//                int sY = (mBounds.height()-dH) / 2;
-//                drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
-
                 Rect result = new Rect();
                 calcCenter(mBounds.width(),mBounds.height(),w,h,false,result);
                 drawable.setBounds(result.left,result.top,result.right,result.bottom);
@@ -415,39 +493,31 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
                 drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
                 break;
             case SCALE_FIT:
-//                if (w<1||h<1) {
-//                    synchronized (this) {
-//                        mIsError = true;
-//                    }
-//                    invalidateSelfOnUiThread();
-//                    return;
-//                }
-//                sH = (float)mBounds.height() / h;
-//                sW = (float)mBounds.width() / w;
-//                ratio = sW > sH ? sH : sW;
-//                dW = (int) (ratio < 1f ? (w * ratio) : w);
-//                dH = (int) (ratio < 1f ? (h * ratio) : h);
-//                sX = (mBounds.width()-dW) / 2;
-//                sY = (mBounds.height()-dH) / 2;
                 result = new Rect();
                 calcCenter(mBounds.width(),mBounds.height(),w,h,true    ,result);
                 drawable.setBounds(result.left,result.top,result.right,result.bottom);
-//                drawable.setBounds(mBounds.left+sX,mBounds.top+sY,mBounds.right-sX, mBounds.bottom-sY);
                 break;
         }
     }
+
     /**
      * set size and adjust bounds
      * @param srcWidth
      * @param srcHeight
      */
-
     protected void setSize(int srcWidth, int srcHeight) {
         mRealWidth = srcWidth;
         mRealHeight = srcHeight;
     }
 
+    /**
+     *
+     * @return loaded drawable, and set internal reference to null
+     */
+
     public synchronized Drawable takeDrawable() {
+        if (mDrawable==null) return null;
+        mDrawable.setCallback(null); // remove callbacks
         Drawable result = mDrawable;
         mDrawable = null;
         return result;
@@ -460,8 +530,9 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
     private void drawDrawable(Canvas canvas, Drawable drawable) {
         int state = canvas.save();
-        canvas.drawRect(mBounds,dbgPaint);
-//        canvas.clipRect(mBounds);
+        if (mDEBUG)
+            canvas.drawRect(mBounds,dbgPaint);
+        canvas.clipRect(mBounds);
         if (drawable!=null) {
             drawable.draw(canvas);
             if (mScaleType == ScaleType.CENTER_CROP) {
@@ -483,6 +554,10 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         mEdgePaint.setStyle(Paint.Style.FILL);
     }
 
+    /**
+     * internal methods to draw edges
+     * @param canvas
+     */
     private void drawVerticalEdges(Canvas canvas) {
         Shader shader;
         shader = new LinearGradient(0, 0, 0, mVerticalEdgeSize, mEdgeColor, Color.TRANSPARENT, Shader.TileMode.CLAMP);
@@ -494,6 +569,10 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         canvas.drawRect(0, mBounds.bottom - mVerticalEdgeSize, mBounds.right, mBounds.bottom, mEdgePaint);
     }
 
+    /**
+     * internal methods to draw edges
+     * @param canvas
+     */
     private void drawHorizontalEdges(Canvas canvas) {
         Shader shader;
         shader = new LinearGradient(0, 0, mHorizontalEdgeSize, 0, mEdgeColor, Color.TRANSPARENT, Shader.TileMode.CLAMP);
@@ -505,12 +584,22 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         canvas.drawRect(mBounds.right - mHorizontalEdgeSize, 0, mBounds.right, mBounds.bottom, mEdgePaint);
     }
 
+    /**
+     * just draws errorDrawable on canvas
+     * (override to implement custom error paint)
+     * @param canvas
+     */
     protected void drawLoadError(Canvas canvas) {
         drawProgress(canvas, mErrorDrawable, 0, 255);
     }
 
     private int angle = 0;
 
+    /**
+     * just draws loadingDrawable on canvas and increments angle
+     * (override to implement custom loading animation)
+     * @param canvas
+     */
     protected void drawNextLoadingFrame(Canvas canvas) {
         Drawable progress = mLoadingDrawable;
         if (progress!=null) {
@@ -522,9 +611,10 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
     /**
      * draw progress drawable on canvas
+     * (override to implement custom progress paints)
      * @param canvas
      * @param progress - drawable
-     * @param angle - rotate angle
+     * @param angle - rotate angle (from 0 to 360, if drawNextLoadingFrame not overriden)
      * @param alpha - alpha
      */
     protected void drawProgress(Canvas canvas, Drawable progress, int angle, int alpha) {
@@ -547,7 +637,6 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     private int mAlpha = 255;
-
     @Override
     public void setAlpha(int alpha) {
         mAlpha = alpha;
@@ -613,15 +702,27 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
+    /**
+     * called when bitmap no more required. MUST OVERRIDE if some caching system for bitmaps used
+     * @param bmp
+     */
     protected void recycleBitmap(Bitmap bmp) {
         if (bmp!=null && !bmp.isRecycled())
             bmp.recycle();
     }
 
+    /**
+     * called when loading finished
+     */
     protected synchronized void handleLoadFinish() {
         invalidateSelfOnUiThread();
     }
 
+    /**
+     * set / replace 'loaded' drawable
+     * @param drawable
+     */
+    @CallSuper
     protected synchronized void setDrawable(Drawable drawable) {
         if (mDrawable!=null && isRunning()) {
             mDrawable.setCallback(null); // remove callbacks from drawable
@@ -629,8 +730,9 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             stop();
         }
         mDrawable = drawable;
-        // mIsError = (drawable == null);
+
         if (mDrawable!=null) {
+            setSize(mDrawable.getIntrinsicWidth(),mDrawable.getIntrinsicHeight());
             applyBounds(drawable);
             mDrawable.setCallback(this);
         }
@@ -642,6 +744,10 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
             invalidateSelfOnUiThread();
     }
 
+    /**
+     *
+     * @return loaded drawable
+     */
     protected synchronized Drawable getDrawable() { return mDrawable; }
     protected void invalidateSelfOnUiThread() {
         if (Looper.getMainLooper().getThread().equals(Thread.currentThread())) {
@@ -656,6 +762,9 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
+    /**
+     * abstract runnable with support cancellation
+     */
     protected abstract class LoadingRunnable extends ComparableRunnable {
         public abstract void onExecutionFailed(Throwable t);
         public abstract void cancel();
@@ -663,6 +772,9 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         public abstract boolean isRunning();
     }
 
+    /**
+     * ThreadPoolExecutor with global cancellation support
+     */
     protected static class CustomThreadPoolExecutor extends ThreadPoolExecutor {
         private boolean mIsCancelled = false;
         public CustomThreadPoolExecutor(
@@ -703,11 +815,18 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
+    /**
+     * retry loading drawable (if previous attemt failed with error)
+     */
+    @Deprecated
     protected synchronized void retry() {
         mIsError = false;
         mInitialLoadingRunnable.uncancel();
     }
 
+    /**
+     * initiate loading (by default - called with first drawing request)
+     */
     public synchronized void load() {
         if (mDrawable!=null||isLoading()) return;
         ThreadPoolExecutor executor = getExecutor();
@@ -720,16 +839,30 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         }
     }
 
+    /**
+     * cancel loading
+     */
     public synchronized void stopLoading() {
         mInitialLoadingRunnable.cancel();
     }
 
+    /**
+     *
+     * @return sampling used with BitmapFactory.decodeFromStream
+     */
+    @Deprecated
     protected abstract int getSampling();
 
+    /**
+     * for prioritized queue
+     */
     static abstract class ComparableRunnable implements Runnable {
         public abstract int getPriority();
     }
 
+    /**
+     * compares priorities of two runnables
+     */
     public static class RunnableComparator implements Comparator<Runnable> {
         public int compare(Runnable r1, Runnable r2){
             ComparableRunnable t1 = (ComparableRunnable)r1;
@@ -765,5 +898,4 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
         return out;
     }
-
 }
