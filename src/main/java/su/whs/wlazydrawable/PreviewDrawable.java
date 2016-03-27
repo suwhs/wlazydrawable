@@ -17,6 +17,7 @@ package su.whs.wlazydrawable;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
@@ -92,6 +93,9 @@ public abstract class PreviewDrawable extends LazyDrawable {
     };
 
     public void loadFullDrawable() {
+        if (super.isLoading())
+            super.stopLoading();
+        super.setError(false);
         getExecutor().execute(mFullLoadingRunnable);
         invalidateSelf();
     }
@@ -159,11 +163,14 @@ public abstract class PreviewDrawable extends LazyDrawable {
      * useful to reduce memory pressure if drawable actual bounds are less than full size version bounds
      */
     public void resampleToBounds() {
-        Bitmap bmp = Bitmap.createBitmap(mBounds.width(),mBounds.height(), Bitmap.Config.RGB_565);
+        Rect bounds = new Rect();
+        getWrappedDrawableBounds(bounds);
+        Bitmap bmp = Bitmap.createBitmap(bounds.width(),bounds.height(), Bitmap.Config.RGB_565);
         Canvas canvas = new Canvas(bmp);
-        canvas.translate(-getBounds().left,-getBounds().right);
+        canvas.translate(-bounds.left,-bounds.top);
         getDrawable().draw(canvas);
         BitmapDrawable bitmapDrawable = new BitmapDrawable(Resources.getSystem(),bmp);
         setDrawable(bitmapDrawable);
+        mFullVersionLoaded = false;
     }
 }

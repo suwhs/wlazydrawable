@@ -187,6 +187,16 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     /**
+     * set/reset error flag
+     * WARNING: method does not invalidate drawable
+     * @param error
+     */
+
+    protected void setError(boolean error) {
+        mIsError = false;
+    }
+
+    /**
      * ScaleType (if real image geometry different to srcWidth/srcHeight, passed with constuctor
      */
 
@@ -231,6 +241,12 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      */
 
     protected abstract void onLoadingError();
+
+    /**
+     *
+     * @return true if drawable was not loaded
+     */
+    public boolean isError() { return mIsError; }
 
     /**
      * handle loading error
@@ -689,7 +705,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
 
     /**
-     * replace wrapped drawable (and reset internal flags)
+     * release wrapped drawable (and reset internal flags)
      * @param drawable
      */
 
