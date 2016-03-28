@@ -25,7 +25,7 @@ import android.util.Log;
 import su.whs.images.GifDrawableCompat;
 
 /**
- * Created by igor n. boulliev <igor@whs.su> on 05.12.15.
+ * Created by igor n. boulliev &lt;igor@whs.su&gt; on 05.12.15.
  *
  * PreviewDrawable - implements two-state Drawable:
  *  1. preview state  (loaded on demand)

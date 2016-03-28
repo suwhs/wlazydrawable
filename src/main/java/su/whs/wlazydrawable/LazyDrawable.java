@@ -29,8 +29,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.support.annotation.CallSuper;
-import android.support.v7.appcompat.BuildConfig;
+//import android.support.annotation.CallSuper;
+//import android.support.v7.appcompat.BuildConfig;
 import android.util.Log;
 
 import java.util.Comparator;
@@ -73,7 +73,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
 
     /**
      * create new LazyDrawable instance
-     *   if srcWidth & srcHeight equals image width and height - scaleType has no effect
+     *   if srcWidth {@literal &} srcHeight equals image width and height - scaleType has no effect
      *
      * @param executorTag - tag for queue
      * @param srcWidth    - width of area, reserved for image
@@ -117,7 +117,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * @param scaleType
      */
 
-    @CallSuper
+//    @CallSuper
     public void setScaleType(ScaleType scaleType) {
         if (mScaleType == scaleType) return;
         mScaleType = scaleType;
@@ -136,7 +136,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * unload drawable from memory (default behavior - calls setDrawable(null)
      */
 
-    @CallSuper
+  //  @CallSuper
     public synchronized void Unload() {
         setDrawable(null);
         mInitialLoadingRunnable.cancel();
@@ -739,7 +739,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * set / replace 'loaded' drawable
      * @param drawable
      */
-    @CallSuper
+  //  @CallSuper
     protected synchronized void setDrawable(Drawable drawable) {
         if (mDrawable!=null && isRunning()) {
             mDrawable.setCallback(null); // remove callbacks from drawable

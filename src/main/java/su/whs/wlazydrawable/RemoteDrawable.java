@@ -37,14 +37,14 @@ import su.whs.images.MemoryLimitPool;
 
 
 /**
- * Created by igor n. boulliev <igor@whs.su> on 31.08.15.
+ * Created by igor n. boulliev &lt;igor@whs.su&gt; on 31.08.15.
  */
 
 /**
  * demo code for show animated drawables in TextViewEx
  *
  * LazyDrawable required for animation on demand launch,
- * and for support AOSP < 11
+ * and for support AOSP &lt; 11
  *
  *
  */
