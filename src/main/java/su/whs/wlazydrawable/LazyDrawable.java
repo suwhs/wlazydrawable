@@ -54,6 +54,7 @@ import java.util.concurrent.TimeUnit;
  */
 
 public abstract class LazyDrawable extends Drawable implements Animatable, Drawable.Callback {
+    public static boolean DEBUG = false;
     private static final String TAG = "LazyDrawable";
     private static WeakHashMap<Object,ThreadPoolExecutor> executor = new WeakHashMap<Object, ThreadPoolExecutor>();//new ThreadPoolExecutor(1,1,1000L, TimeUnit.SECONDS,new LinkedBlockingQueue<Runnable>(500));
     private Drawable.Callback mCallbackCompat = null;
@@ -69,7 +70,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     private int mRealWidth = -1;
     private int mRealHeight = -1;
     private int mLoadingPriority = 0;
-    private boolean mDEBUG = true;
+
     /**
      * create new LazyDrawable instance
      *   if srcWidth & srcHeight equals image width and height - scaleType has no effect
@@ -546,7 +547,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     }
     private void drawDrawable(Canvas canvas, Drawable drawable) {
         int state = canvas.save();
-        if (mDEBUG)
+        if (LazyDrawable.DEBUG)
             canvas.drawRect(mBounds,dbgPaint);
         canvas.clipRect(mBounds);
         if (drawable!=null) {
