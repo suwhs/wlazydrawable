@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
  *
  */
 
-public abstract class LazyDrawable extends Drawable implements Animatable, Drawable.Callback {
+public abstract class LazyDrawable extends Drawable implements Animatable, Drawable.Callback, su.whs.lazydrawable.parent.LazyDrawable {
     public static boolean DEBUG = false;
     private static final String TAG = "LazyDrawable";
     private static WeakHashMap<Object,ThreadPoolExecutor> executor = new WeakHashMap<Object, ThreadPoolExecutor>();//new ThreadPoolExecutor(1,1,1000L, TimeUnit.SECONDS,new LinkedBlockingQueue<Runnable>(500));
@@ -103,6 +103,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
         on AOSP < 11 this method must be used instead setCallback()
      */
 
+    @Override
     public void setCallbackCompat(Drawable.Callback cb) {
         if (Build.VERSION.SDK_INT>10) {
             setCallback(cb);
@@ -137,6 +138,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      */
 
   //  @CallSuper
+    @Override
     public synchronized void Unload() {
         setDrawable(null);
         mInitialLoadingRunnable.cancel();
@@ -150,6 +152,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
      * UNSTABLE
      * @param visible
      */
+    @Override
     public abstract void onVisibilityChanged(boolean visible);
 
     /**
@@ -844,6 +847,7 @@ public abstract class LazyDrawable extends Drawable implements Animatable, Drawa
     /**
      * initiate loading (by default - called with first drawing request)
      */
+    @Override
     public synchronized void load() {
         if (mDrawable!=null||isLoading()) return;
         ThreadPoolExecutor executor = getExecutor();
